@@ -1,4 +1,5 @@
 # Praktikum Roboterdynamik - Gruppe 1
 
 Mitglieder:
-- Qi Wang
+
+- Qi Wang(go46vop）
