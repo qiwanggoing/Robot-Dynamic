@@ -2,4 +2,6 @@
 
 Mitglieder:
 
-- Qi Wang(go46vop）
+- Qi Wang(go46vop)
+- Zhipeng Wang(ge58hir)
+
