@@ -225,17 +225,31 @@ class Link:
 
         """
 
-
         ###Workspace Start###
-        # vector from predessor to this link
+        # vector from predecessor to this link
+        # r_pi__p from p to i current link wrt coordinate p
         # self.r_pi__p = ...
+        self.r_pi__p = np.array([
+            self.a_p,
+            -np.sin(self.alpha_p) * self.d_i,
+            np.cos(self.alpha_p) * self.d_i,
+        ])
         # base transformation from predecessor to this link
         # self.A_ip = ...
+        self.A_pi = np.array([
+            [np.cos(q), -np.sin(q), 0],
+            [np.sin(q) * np.cos(self.alpha_p), np.cos(q) * np.cos(self.alpha_p), -np.sin(self.alpha_p)],
+            [np.sin(q) * np.sin(self.alpha_p), np.cos(q) * np.sin(self.alpha_p), np.cos(self.alpha_p)]
+        ])
+        self.A_ip = self.A_pi.T
         ## absolute position and orientation
         # base transformation from cosy 0 to this link
+        # A_i0 rotate from 0 world system to i current link, prev.A_i0 from 0 to p
         # self.A_i0 = ...
+        self.A_i0 = self.A_ip @ prev.A_i0
         # position of this link
-        # self.r_i__0 = ...
+        # self.r_i__0 = ...       r_i__0 center of i wrt the world 0 in 0 (from 0 to i) , prev.r_i__0 from 0 to p
+        self.r_i__0 = prev.r_i__0 + prev.A_i0.T @ self.r_pi__p
         ###Workspace End###
 
     def calculate_velocities(self, prev: Link, dot_q: float)-> None:
@@ -252,7 +266,7 @@ class Link:
 
 
         dot_q: float
-            joint velocity
+            joint velocity omega around Zi
 
         Returns
         ------
@@ -263,10 +277,16 @@ class Link:
         ###Workspace Start###
         # difference angular velocity this link minus predecessor
         # self.omega_pi__i = ...
-        # angular velocity
+        self.omega_pi__i = np.array([0.0, 0.0, dot_q])
+        # absolute angular velocity
         # self.omega_i__i = ...
+        self.omega_i__i = (self.A_ip @ prev.omega_i__i) + self.omega_pi__i
         # translational velocity
         # self.v_i__i = ...
+        # Velocity of origin of i, as seen from and expressed in frame p:
+        v_pi__i = prev.v_i__i + mh.tilde(prev.omega_i__i) @ self.r_pi__p
+        # Transform this velocity to frame i:
+        self.v_i__i = self.A_ip @ v_pi__i
         ###Workspace End###
 
     def calculate_accelerations(self, prev: Link, ddot_q: float) -> None:
@@ -293,11 +313,17 @@ class Link:
 
 
         ###Workspace Start
-        # self.alpha_i__i = ...
-        # translational acceleration
+        # self.alpha_i__i = ... absolute angular acceleration of i = previous +
+        self.alpha_i__i = ((self.A_ip @ prev.alpha_i__i) + mh.tilde(self.A_ip @ prev.omega_i__i) @ self.omega_pi__i
+                           + np.array([0.0, 0.0, ddot_q]))
+        # absolute translational acceleration of i
         # self.a_i__i = ...
+        self.a_i__i = self.A_ip @ (prev.a_i__i + mh.tilde(prev.alpha_i__i) @ self.r_pi__p
+                                   + mh.tilde(prev.omega_i__i) @ (mh.tilde(prev.omega_i__i) @ self.r_pi__p))
         # translation acceleration of CoM
-        # self.a_CoM__i = ...
+        # self.a_CoM__i = ... center of mass
+        self.a_CoM__i = (self.a_i__i + mh.tilde(self.alpha_i__i) @ self.r_iCoM__i
+                         + mh.tilde(self.omega_i__i) @ (mh.tilde(self.omega_i__i) @ self.r_iCoM__i))
         ###Workspace End###
 
     def calculate_jacobis(self, prev: Link) -> None:
@@ -322,8 +348,14 @@ class Link:
         ###Workspace Start###
         # rotational
         # self.J_R__i = ...
+        self.J_R_rel_i = np.zeros(self.J_R__i.shape)
+        if self.dof > 0:
+            self.J_R_rel_i[2, self.dof - 1] = 1
+        self.J_R__i = self.A_ip @ prev.J_R__i + self.J_R_rel_i
         # translational
         # self.J_Ti__i = ...
+        self.J_T_rel_i = self.A_ip @ (mh.tilde(self.r_pi__p).T @ prev.J_R__i)
+        self.J_Ti__i = self.A_ip @ prev.J_Ti__i + self.J_T_rel_i
         ###Workspace End###
 
     def calculate_mass_matrix(self)->None:
@@ -494,9 +526,9 @@ class Robot:
             else:
                 link.calculate_positions(self.links[link.dof-2], q[link.dof-1])
 
-
         ###Workspace Start###
-        #self.r_TCP__0 = ...
+        # r_TCP__0 = r_i__0 + A_0i * r_NTCP__N
+        self.r_TCP__0 = link.r_i__0 + link.A_i0.T @ self.r_NTCP__N
         ###Workspace End###
 
         self.q = np.copy(q)
@@ -523,8 +555,16 @@ class Robot:
         ###Workspace Start###
         # calculation of the velocity of all links
         # ...
+        for link in self.links:  # Using link_obj to avoid confusion if needed, but 'link' is fine too
+            if link.dof == 1:
+                link.calculate_velocities(self.base, dot_q[link.dof-1])
+            else:
+                link.calculate_velocities(self.links[link.dof-2], dot_q[link.dof-1])
+
         # calculation of the velocity of the TCP
         # self.v_TCP__0 = ...
+        # TCP velocity in world frame: v_TCP = v_N + omega_N x r_N_TCP (all in world frame)
+        self.v_TCP__0 = link.A_i0.T @ (link.v_i__i + mh.tilde(link.omega_i__i) @ self.r_NTCP__N)
         ###Workspace End###
 
         self.dot_q = np.copy(dot_q)
@@ -552,8 +592,21 @@ class Robot:
         ###Workspace Start###
         # calculation of the acceleration of all links
         # ...
+        for link in self.links:
+            if link.dof == 1:
+                link.calculate_accelerations(self.base, ddot_q[link.dof - 1])
+            else:
+                link.calculate_accelerations(self.links[link.dof - 2], ddot_q[link.dof - 1])
         # calculation of the acceleration of the TCP
         # self.a_TCP__0 = ...
+        # Calculate TCP acceleration in frame N
+        # Formula: a_TCP__N = a_N__N + alpha_N__N x r_N_TCP__N + omega_N__N x (omega_N__N x r_N_TCP__N)
+        a_PTCP_i = (link.a_i__i + mh.tilde(link.alpha_i__i) @ self.r_NTCP__N
+                    + mh.tilde(link.omega_i__i) @ (mh.tilde(link.omega_i__i) @ self.r_NTCP__N))
+
+        # Transform TCP acceleration from frame N to base frame 0
+        # last_link.A_i0 is the rotation matrix from frame 0 to frame N (A_N0)
+        self.a_TCP__0 = link.A_i0.T @ a_PTCP_i
         ###Workspace End###
 
         self.ddot_q = np.copy(ddot_q)
@@ -575,9 +628,17 @@ class Robot:
         ###Workspace Start###
         # calculation of the jacobians of all links
         # ...
+        for link in self.links:
+            if link.dof == 1:
+                link.calculate_jacobis(self.base)
+            else:
+                link.calculate_jacobis(self.links[link.dof-2])
         # calculation of the jacobians of the TCP
         # self.J_RTCP__0 = ...
+        self.J_RTCP__0 = link.A_i0.T @ link.J_R__i
         # self.J_TTCP__0 = ...
+        self.J_TTCP__N = link.J_Ti__i + mh.tilde(self.r_NTCP__N).T @ link.J_R__i
+        self.J_TTCP__0 = link.A_i0.T @ self.J_TTCP__N
         ###Workspace End###
 
     def calculate_mass_matrix(self) -> None:
@@ -673,9 +734,9 @@ class Robot:
         ###Workspace End###
 
         # direct kinematics with new positions and velocities
-        self.calculate_positions(q)
-        self.calculate_velocities(dot_q)
-        self.calculate_jacobis()
+        # self.calculate_positions(q)
+        # self.calculate_velocities(dot_q)
+        # self.calculate_jacobis()
 
 
     ###Workspace Start###

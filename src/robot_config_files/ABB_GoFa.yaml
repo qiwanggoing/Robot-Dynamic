@@ -5,30 +5,30 @@ links:
 ###Workspace Start###
 # list of link parameters starting from the first link i=1 (p=0)
 # angles can be entered using "pi" or "deg" as variables
-#  - alpha_p: ?
-#    a_p: ? # in meter
-#    d_i: ? # in meter
-#  - alpha_p: ?
-#    a_p: ? # in meter
-#    d_i: ? # in meter
-#  - alpha_p: ?
-#    a_p: ? # in meter
-#    d_i: ? # in meter
-#  - alpha_p: ?
-#    a_p: ? # in meter
-#    d_i: ? # in meter
-#  - alpha_p: ?
-#    a_p: ? # in meter
-#    d_i: ? # in meter
-#  - alpha_p: ?
-#    a_p: ? # in meter
-#    d_i: ? # in meter
+- alpha_p: 0 deg
+  a_p: 0.0 # in meter
+  d_i: 0 # in meter
+- alpha_p: -90 deg
+  a_p: 0.0 # in meter
+  d_i: 0.0 # in meter
+- alpha_p: 0.0 deg
+  a_p: 0.444 # in meter
+  d_i: 0.0 # in meter
+- alpha_p: -90.0 deg
+  a_p: 0.110 # in meter
+  d_i: 0.47 # in meter
+- alpha_p: 90 deg
+  a_p: 0.0 # in meter
+  d_i: 0 # in meter
+- alpha_p: -90 deg
+  a_p: 0.080 # in meter
+  d_i: 0.0 # in meter
 ###Workspace End###
 
 
 ###Workspace Start###
 # position of the TCP represented in the coordinate system of the last link in meter
-#r_NTCP__N: ?
+r_NTCP__N: [0.0, 0.0, 0.101]
 ###Workspace End###
 
 # home position of the robot in joint space

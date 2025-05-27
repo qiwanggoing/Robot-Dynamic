@@ -17,4 +17,10 @@ def tilde(v: np.array((3))) -> np.array((3,3)):
     ###Workspace Start###
     #T = ...
     #return T
+    T = np.array([
+        [0, -v[2], v[1]],
+        [v[2], 0, -v[0]],
+        [-v[1], v[0], 0]
+    ])
+    return T
     ###Workspace End###
