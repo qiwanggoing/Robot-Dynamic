@@ -9,7 +9,6 @@ import rdplib.plot_helpers as ph
 # Python 3.10 is the minimum version required for this project
 assert sys.version_info >= (3, 10)
 
-
 ## create robot
 robot = rb.robot_factory(os.path.join('robot_config_files','ABB_GoFa.yaml'))
 
