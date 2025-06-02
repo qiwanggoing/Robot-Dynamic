@@ -10,8 +10,12 @@ import rdplib.plot_helpers as ph
 assert sys.version_info >= (3, 10)
 
 ## create robot
-robot = rb.robot_factory(os.path.join('robot_config_files','ABB_GoFa.yaml'))
+# robot = rb.robot_factory(os.path.join('robot_config_files','ABB_GoFa.yaml'))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # 当前文件 src 目录下
+config_path = os.path.join(BASE_DIR, 'robot_config_files', 'ABB_GoFa.yaml')
+config_path = os.path.normpath(config_path)
 
+robot = rb.robot_factory(config_path)
 ## calculate trajectory
 q_start = np.copy(robot.q_home) # start: home-position of the robot
 q_end = q_start + np.pi/4 * np.ones((robot.size)) # end: all joints move +45 degrees
