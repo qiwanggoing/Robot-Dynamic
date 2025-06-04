@@ -67,26 +67,6 @@ class TestDK(unittest.TestCase):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         # 从 direct_kinematics.py 中借鉴参数设置
         q_start = np.copy(robot.q_home)  #
         q_end = q_start + np.pi / 4 * np.ones((robot.size))  #

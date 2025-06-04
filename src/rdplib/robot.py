@@ -527,7 +527,7 @@ class Robot:
                 link.calculate_positions(self.links[link.dof-2], q[link.dof-1])
 
         ###Workspace Start###
-        # r_TCP__0 = r_i__0 + A_0i * r_NTCP__N
+        # r_TCP__0 = r_i__0 + A_0i * r_NTCP__N link. is last link
         self.r_TCP__0 = link.r_i__0 + link.A_i0.T @ self.r_NTCP__N
         ###Workspace End###
 
