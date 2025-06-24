@@ -10,6 +10,7 @@ assert sys.version_info >= (3, 10)
 
 # choose robot
 robot_name = 'FrankaEmika' # or 'FrankaEmika'
+# robot_name = 'ABB_GoFa'
 
 if robot_name == 'ABB_GoFa':
     q_d = np.array([0,0,0,0,0,0])
@@ -56,7 +57,6 @@ for l in range(robot.size):
     data[2,0] = 2
     data[2,l*12+1:l*12+4] = np.transpose(robot.links[l].r_i__0)
     data[2,l*12+4:l*12+13] = np.reshape(np.transpose(robot.links[l].A_i0),(1,9))
-
 
 # save data for viewer
 np.savetxt('trajectory.csv', data, delimiter="\t", fmt='%.4f')

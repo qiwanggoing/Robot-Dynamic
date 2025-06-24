@@ -374,7 +374,18 @@ class Link:
 
 
         ###Workspace Start###
-        #self.dM = ...
+        J_T_i = self.J_Ti__i
+        J_R_i = self.J_R__i
+        Theta_i_i = self.Theta_i_i__i  # mass moment of inertia
+        r_tilde = mh.tilde(self.r_iCoM__i)
+        m_i = self.m
+
+        term1 = J_T_i.T @ (m_i * J_T_i)
+        term2 = m_i * (J_T_i.T @ r_tilde.T @ J_R_i)
+        term3 = m_i * (J_R_i.T @ r_tilde @ J_T_i)
+        term4 = J_R_i.T @ Theta_i_i @ J_R_i
+
+        self.dM = term1 + term2 + term3 + term4
         ###Workspace End###
 
     def calculate_id(self, g__0: np.array((3))) -> None:
@@ -401,10 +412,19 @@ class Link:
         ###Workspace Start###
         # newton
         # F = ...
+        g__i = self.A_i0 @ g__0
+        F = self.m * self.a_CoM__i - self.m * g__i
         # euler
         # T = ...
+        d_dt_Li = self.Theta_i_i__i @ self.alpha_i__i + mh.tilde(
+            self.omega_i__i) @ self.Theta_i_i__i @ self.omega_i__i
+
+        M_gravity = mh.tilde(self.r_iCoM__i) @ (self.m * g__i)
+        T = d_dt_Li + self.m * mh.tilde(
+            self.r_iCoM__i) @ self.a_i__i - M_gravity
         # projection into direction compatible with the constraints and add to tau_id
         # self.tau_id = ...
+        self.tau_id = self.J_Ti__i.T @ F + self.J_R__i.T @ T
         ###Workspace End###
 
 class Robot:
@@ -657,6 +677,10 @@ class Robot:
 
         ###workspace Start###
         # build total mass matrix M from the contribution of each link
+        self.M = np.zeros((self.size, self.size))
+        for link in self.links:
+            link.calculate_mass_matrix()
+            self.M += link.dM
         ###Workspace End###
 
     def calculate_id(self) -> None:
@@ -677,6 +701,11 @@ class Robot:
 
         ###Workspace Start###
         # add the contribution of each link to the total joint torques
+        self.tau_id = np.zeros(self.size)
+
+        for link in self.links:
+            link.calculate_id(self.g__0)  # 传入重力矢量
+            self.tau_id += link.tau_id
         ###Workspace End###
 
     def calculate_eom(self) -> np.array:
@@ -699,13 +728,23 @@ class Robot:
 
         ###Workspace Start###
         # calculatio h-vector
-        # a...
+        # a...qddot
+        self.ddot_q = np.zeros_like(self.ddot_q)
+        self.calculate_accelerations(self.ddot_q)
         # h = ...
+        self.calculate_id()
+        h = np.copy(self.tau_id)
         # calculate mass matrix
-        # ...
+        self.calculate_mass_matrix()
+
         # solve system of equations
-        # ddot_q = ...
-        # return ddot_q
+        # M * ddot_q = Q_u - h
+        # b = Q_u - h
+        b = self.tau_antrieb - h
+
+        # 使用 np.linalg.solve() 求解 ddot_q，这比手动求逆更高效、更稳定。
+        ddot_q = np.linalg.solve(self.M, b)
+        return ddot_q
         ###Workspace End###
 
     def calculate_tmstp_euler(self, dt: float) -> None:
@@ -727,24 +766,41 @@ class Robot:
 
         ###Workspace Start###
         # calculation of the joint accelerations
-        # self.ddot_q = ...
+        self.ddot_q = self.calculate_eom()
         # time integration for velocities and positions (explicite euler)
-        # q = ...
-        # dot_q = ...
+        self.q = self.q + self.dot_q * dt
+        self.dot_q = self.dot_q + self.ddot_q * dt
         ###Workspace End###
 
         # direct kinematics with new positions and velocities
-        # self.calculate_positions(q)
-        # self.calculate_velocities(dot_q)
-        # self.calculate_jacobis()
+        self.calculate_positions(self.q)
+        self.calculate_velocities(self.dot_q)
+        self.calculate_jacobis()
 
 
     ###Workspace Start###
-    # def ode_func(self, t: float, y: np.array) -> np.array:
-    #     """statespace formulation of the equations of motion for an ode solver
-    #     (e.g. scipy.integrate.RK45 -> fun)
-    #     ... """
-    #     ...
+    def ode_func(self, t: float, y: np.array) -> np.array:
+        """statespace formulation of the equations of motion for an ode solver
+        (e.g. scipy.integrate.RK45 -> fun)
+        ... """
+        # 1. 从状态向量 y 中解包出 q 和 dot_q
+        current_q = y[:self.size]
+        current_dot_q = y[self.size:]
+
+        # 2. 将机器人的内部状态更新为求解器传入的当前状态
+        #    这是必须的，因为 calculate_eom 会使用 self.q 和 self.dot_q 等
+        self.calculate_positions(current_q)
+        self.calculate_velocities(current_dot_q)
+        self.calculate_jacobis()
+
+        # 3. 计算关节加速度 ddot_q
+        #    calculate_eom 会使用 self.tau_antrieb，这个量在调用积分器之前已经被设置好了
+        current_ddot_q = self.calculate_eom()
+
+        # 4. 将结果打包成状态向量的导数 [dot_q, ddot_q] 并返回
+        dydt = np.concatenate([current_dot_q, current_ddot_q])
+
+        return dydt
     ###Workspace End###
 
     def calculate_tmstp_rk45(self, dt: float) -> None:
@@ -766,14 +822,31 @@ class Robot:
 
         ###Workspace Start###
         # get q, dot_q, ddot_q from time integration with RK45
-        # ...
+        # 1. 将机器人当前状态 (q, dot_q) 打包成初始状态向量 y0
+        y0 = np.concatenate([self.q, self.dot_q])
+
+        # 2. 定义积分的时间范围（从当前时刻 0 到 dt 之后）
+        t_span = [0, dt]
+
+        # 3. 调用 scipy 的 solve_ivp 求解器
+        #    它会使用我们上面定义的 self.ode_func 来计算系统动态
+        sol = solve_ivp(fun=self.ode_func, t_span=t_span, y0=y0, method='RK45')
+
+        # 4. 从求解结果 sol 中提取积分结束时（即 dt 之后）的状态
+        y_new = sol.y[:, -1]
+        q_new = y_new[:self.size]
+        dot_q_new = y_new[self.size:]
         # direct kinematics with new positions and velocities
-        # ...
-        # self.calculate_positions(???)
-        # self.calculate_velocities(???)
+        # 5. 更新机器人的状态
+        self.q = q_new
+        self.dot_q = dot_q_new
         ###Workspace End###
 
+        # 6. 用新的位置和速度更新机器人的运动学状态
+        self.calculate_positions(self.q)
+        self.calculate_velocities(self.dot_q)
         self.calculate_jacobis()
+        ###Workspace End###
 
 
 def robot_factory(path: str) -> Robot:
