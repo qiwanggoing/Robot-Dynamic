@@ -20,42 +20,45 @@ def get_spline_coefficients(points: np.array, T_part: np.array) -> list:
         Spline coefficients for the individual intervals
     """
 
-
     ###Workspace Start###
     numpoints = len(points)
     h = T_part
 
-    # Ax=B
-    # Setup matrix A
-    A = np.zeros((numpoints - 2, numpoints - 2))
-    for i in range(numpoints - 2):
-        A[i, i] = 2 * (h[i] + h[i+1])
-        if i > 0:
-            A[i, i-1] = h[i]
-        if i < numpoints - 3:
-            A[i, i+1] = h[i+1]
+    # 1. 构建一个 n x n 的矩阵 A
+    A = np.zeros((numpoints, numpoints))
+    # 2. 构建一个 n x 1 的向量 B
+    B = np.zeros(numpoints)
 
-    # Setup vector B
-    B = np.zeros(numpoints - 2)
-    for i in range(numpoints - 2):
-        B[i] = 6 * ((points[i+2] - points[i+1]) / h[i+1] - (points[i+1] - points[i]) / h[i])
+    # 填充第一行 (对应边界条件 s_dot(t_1) = 0)
+    A[0, 0] = 2 * h[0]
+    A[0, 1] = h[0]
+    B[0] = 6 * (points[1] - points[0]) / h[0]
 
-    # Solve for ddot_p
-    ddot_p_internal = np.linalg.solve(A, B)
-    
-    ddot_p = np.zeros(numpoints)
-    ddot_p[1:-1] = ddot_p_internal
+    # 循环填充中间 n-2 行
+    for i in range(1, numpoints - 1):
+        A[i, i - 1] = h[i - 1]
+        A[i, i] = 2 * (h[i] + h[i - 1])
+        A[i, i + 1] = h[i]
+        B[i] = 6 * ((points[i + 1] - points[i]) / h[i] - (points[i] - points[i - 1]) / h[i - 1])
 
-    # Calculate coefficients
+    # 填充最后一行 (对应边界条件 s_dot(t_n) = 0)
+    A[numpoints - 1, numpoints - 2] = h[numpoints - 2]
+    A[numpoints - 1, numpoints - 1] = 2 * h[numpoints - 2]
+    B[numpoints - 1] = -6 * (points[numpoints - 1] - points[numpoints - 2]) / h[numpoints - 2]
+
+    # 3. 求解线性方程组 Ax=B，得到所有点的加速度 ddot_p
+    ddot_p = np.linalg.solve(A, B)
+
+    # 4. 根据已知的 ddot_p 计算 a, b, c, d 系数
     a = np.zeros(numpoints - 1)
     b = np.zeros(numpoints - 1)
     c = np.zeros(numpoints - 1)
     d = np.zeros(numpoints - 1)
 
     for i in range(numpoints - 1):
-        a[i] = (ddot_p[i+1] - ddot_p[i]) / (6 * h[i])
+        a[i] = (ddot_p[i + 1] - ddot_p[i]) / (6 * h[i])
         b[i] = ddot_p[i] / 2
-        c[i] = (points[i+1] - points[i]) / h[i] - (h[i] * (ddot_p[i+1] + 2 * ddot_p[i])) / 6
+        c[i] = (points[i + 1] - points[i]) / h[i] - (h[i] * (ddot_p[i + 1] + 2 * ddot_p[i])) / 6
         d[i] = points[i]
 
     return [a, b, c, d]
