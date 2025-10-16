@@ -18,8 +18,8 @@ TIME_INTEGRATION = Enum('SOLVER_OPTIONS', ['euler', 'rk45'])
 SCENARIO = Enum('SCENARIO', ['integration' , 'real'])
 
 substeps = 1 # steps per inported time step
-# scenario = SCENARIO.integration
-scenario = SCENARIO.real
+scenario = SCENARIO.integration
+# scenario = SCENARIO.real
 
 if scenario == SCENARIO.integration:
     time_integration = TIME_INTEGRATION.rk45

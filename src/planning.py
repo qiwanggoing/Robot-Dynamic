@@ -10,8 +10,8 @@ from rdplib.planning.Blends import parabolic_blends
 from rdplib.planning.PTP import PTP_quintic
 from rdplib.planning.Spline import spline
 import rdplib.robot as rb
-import matplotlib
-matplotlib.use('TkAgg')
+# import matplotlib
+# matplotlib.use('TkAgg')
 
 # Python 3.10 is the minimum version required for this project
 assert sys.version_info >= (3, 10)

@@ -28,7 +28,7 @@ links:
 
 ###Workspace Start###
 # position of the TCP represented in the coordinate system of the last link in meter
-r_NTCP__N: [0.0, 0.0, 0.101]
+r_NTCP__N: [0.0, 0.0, 0.187]
 ###Workspace End###
 
 # home position of the robot in joint space
